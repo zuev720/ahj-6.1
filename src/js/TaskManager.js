@@ -4,36 +4,42 @@ export default class TaskManager {
       this.container = document.querySelector(elem);
     }
     this.container = elem;
-    this.buttonAddTasks = this.container.querySelectorAll('.add-task-text');
-    this.buttonsForm = this.container.querySelectorAll('.form-button');
-    this.buttonsFormHide = this.container.querySelectorAll('.form-button-hide');
-    this.buttonsTasksHide = this.container.querySelectorAll('.hide-tasks-block');
-    this.contentsBlocks = this.container.querySelectorAll('.task-content-block');
-    [...this.buttonAddTasks].forEach((element) => element.addEventListener('click', (e) => TaskManager.onClickAddTask(e)));
-    [...this.buttonsForm].forEach((button) => button.addEventListener('click', (e) => this.onClickFormButton(e)));
-    [...this.buttonsFormHide].forEach((button) => button.addEventListener('click', (e) => TaskManager.onClickFormButtonHide(e)));
-    [...this.buttonsTasksHide].forEach((button) => button.addEventListener('click', (e) => TaskManager.onClickTasksHideButton(e)));
-    [...this.contentsBlocks].forEach((block) => {
-      block.addEventListener('mousedown', (e) => this.onCardMouseDown(e));
-      block.addEventListener('mousemove', (e) => this.onCardMouseMove(e));
-      block.addEventListener('mouseup', (e) => this.onCardMouseUp(e));
-      block.addEventListener('mouseleave', (e) => TaskManager.onCardMouseLeave(e));
-    });
 
-    this.draggedEl = null;
-    this.ghostEl = null;
-    this.shiftX = null;
-    this.shiftY = null;
     this.storage = {
       todo: [],
       inProgress: [],
       done: [],
     };
+
+    this.init();
     this.drawTasks();
+
+    this.draggedEl = null;
+    this.ghostEl = null;
+    this.shiftX = null;
+    this.shiftY = null;
+  }
+
+  init() {
+    this.container.addEventListener('mousedown', (e) => this.onCardMouseDown(e));
+    this.container.addEventListener('mousemove', (e) => this.onCardMouseMove(e));
+    this.container.addEventListener('mouseup', (e) => this.onCardMouseUp(e));
+    this.container.addEventListener('mouseleave', (e) => TaskManager.onCardMouseLeave(e));
+
+    this.buttonAddTasks = this.container.querySelectorAll('.add-task-text');
+    this.buttonsForm = this.container.querySelectorAll('.form-button');
+    this.buttonsFormHide = this.container.querySelectorAll('.form-button-hide');
+    this.buttonsTasksHide = this.container.querySelectorAll('.hide-tasks-block');
+    this.textAreas = this.container.querySelectorAll('.text-area');
+
+    [...this.buttonsForm].forEach((button) => button.addEventListener('click', (e) => this.onClickFormButton(e)));
+    [...this.buttonAddTasks].forEach((element) => element.addEventListener('click', (e) => TaskManager.onClickAddTask(e)));
+    [...this.textAreas].forEach((button) => button.addEventListener('keydown', (e) => TaskManager.onClickTextArea(e)));
+    [...this.buttonsFormHide].forEach((button) => button.addEventListener('click', (e) => TaskManager.onClickFormButtonHide(e)));
+    [...this.buttonsTasksHide].forEach((button) => button.addEventListener('click', (e) => TaskManager.onClickTasksHideButton(e)));
   }
 
   drawTasks() {
-    // localStorage.removeItem('storage');
     const storage = JSON.parse(localStorage.getItem('storage'));
     if (storage === null) return;
     Object.keys(storage).forEach((key) => {
@@ -82,6 +88,7 @@ export default class TaskManager {
 
     this.deleteTask(this.draggedEl);
     document.body.appendChild(this.ghostEl);
+    e.currentTarget.style.cursor = 'grabbing';
   }
 
   onCardMouseMove(e) {
@@ -91,6 +98,14 @@ export default class TaskManager {
     this.ghostEl.style.top = `${e.pageY - this.shiftY - this.ghostEl.offsetHeight}px`;
     document.body.appendChild(this.ghostEl);
     e.currentTarget.style.cursor = 'grabbing';
+
+    const currentDroppable = (document.elementFromPoint(e.clientX, e.clientY).closest('.task-content-block'))
+      ? document.elementFromPoint(e.clientX, e.clientY).closest('.task-content-block') : null;
+
+    if (currentDroppable) currentDroppable.style.border = '#36afcc dashed 2px';
+    else {
+      this.findAndDeleteBorder();
+    }
   }
 
   static onCardMouseLeave(e) {
@@ -99,36 +114,36 @@ export default class TaskManager {
 
   onCardMouseUp(e) {
     e.preventDefault();
-    if (!this.draggedEl) return;
-    let closest = null;
+    if (!this.draggedEl || !e.target.closest('.task-content-block')) return;
 
+    let closest = null;
     if (document.elementFromPoint(e.clientX, e.clientY).classList.contains('.task-container-block')) {
       closest = document.elementFromPoint(e.clientX, e.clientY);
       const { top } = closest.getBoundingClientRect();
       if (e.pageY > window.scrollY + top + closest.offsetHeight / 2) {
-        e.currentTarget.insertBefore(this.draggedEl, closest.nextElementSibling);
+        e.target.insertBefore(this.draggedEl, closest.nextElementSibling);
       } else {
-        e.currentTarget.insertBefore(this.draggedEl, closest);
+        e.target.insertBefore(this.draggedEl, closest);
       }
     }
     if (document.elementFromPoint(e.clientX, e.clientY).closest('.task-container-block')) {
       closest = document.elementFromPoint(e.clientX, e.clientY).closest('.task-container-block');
       const { top } = closest.getBoundingClientRect();
       if (e.pageY > window.scrollY + top + closest.offsetHeight / 2) {
-        e.currentTarget.insertBefore(this.draggedEl, closest.nextElementSibling);
+        e.target.insertBefore(this.draggedEl, closest.nextElementSibling);
       } else {
-        e.currentTarget.insertBefore(this.draggedEl, closest);
+        e.target.insertBefore(this.draggedEl, closest);
       }
     }
 
     if (document.elementFromPoint(e.clientX, e.clientY).className === 'task-content-block') {
-      e.currentTarget.insertAdjacentElement('beforeend', this.draggedEl);
+      e.target.insertAdjacentElement('beforeend', this.draggedEl);
     }
 
-    const { type } = e.currentTarget.closest('.task-column').dataset;
+    const { type } = e.target.closest('.task-column').dataset;
     const storage = JSON.parse(localStorage.getItem('storage'));
     storage[type] = [];
-    [...e.currentTarget.closest('.task-column').querySelectorAll('.task')]
+    [...e.target.closest('.task-column').querySelectorAll('.task')]
       .reduce((arr, task) => {
         arr.push(task.textContent);
         return arr;
@@ -141,12 +156,14 @@ export default class TaskManager {
     this.shiftX = null;
     this.shiftY = null;
     e.currentTarget.style.cursor = '';
+    this.findAndDeleteBorder();
   }
 
   static onClickAddTask(e) {
     const button = e.target;
     button.style.display = 'none';
     button.previousElementSibling.style.display = 'block';
+    e.target.previousElementSibling.querySelector('.text-area').focus();
   }
 
   deleteTask(element) {
@@ -166,6 +183,13 @@ export default class TaskManager {
 
   static onMouseOutCards(e) {
     e.currentTarget.querySelector('.task-delete').style.display = 'none';
+  }
+
+  static onClickTextArea(e) {
+    if (e.key === 'Enter') {
+      const event = new Event('click');
+      e.target.nextElementSibling.querySelector('.form-button').dispatchEvent(event);
+    }
   }
 
   onClickFormButton(e) {
@@ -202,5 +226,13 @@ export default class TaskManager {
     } else {
       tasksBlock.classList.remove('task-content-block-none');
     }
+  }
+
+  findAndDeleteBorder() {
+    [...this.container.querySelectorAll('.task-content-block')]
+      .forEach((elem) => {
+        const block = elem;
+        block.style.border = 'none';
+      });
   }
 }
